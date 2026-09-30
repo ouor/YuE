@@ -1,0 +1,47 @@
+.gradio-container { max-width: 1320px !important; margin: 0 auto; }
+
+.app-header { padding: 6px 4px 0; }
+.app-header h1 { margin-bottom: 0; }
+.app-header p { margin-top: 2px; color: var(--body-text-color-subdued); }
+.app-footer { text-align: center; color: var(--body-text-color-subdued); font-size: 0.85em; margin-top: 12px; }
+
+.tab-intro p { color: var(--body-text-color-subdued); margin: 0 0 6px; }
+.step-title h3 { margin: 14px 0 4px; }
+.fine-print p { font-size: 0.8em; color: var(--body-text-color-subdued); }
+
+.preset-row { align-items: center; flex-wrap: wrap; gap: 6px; padding: 6px 8px; }
+.preset-row > * { flex: 0 0 auto !important; min-width: 0 !important; }
+.preset-label p { margin: 0; font-weight: 600; }
+.tag-row { flex-wrap: wrap; gap: 6px; }
+.tag-row > button { flex: 0 0 auto !important; min-width: 0 !important; }
+
+.result-card { padding: 4px; }
+.job-status { display: flex; gap: 10px; align-items: center; padding: 12px 14px; border-radius: 10px;
+  background: var(--block-background-fill); border: 1px solid var(--border-color-primary); }
+.job-status .icon { font-size: 1.2em; width: 1.4em; text-align: center; }
+.job-status.done { border-color: #16a34a; }
+.job-status.done .icon { color: #16a34a; }
+.job-status.planned { border-color: #7c3aed; }
+.job-status.error { border-color: #dc2626; color: #dc2626; }
+.job-status.error .icon { font-weight: 700; }
+.job-status.cancelled { border-color: #9ca3af; }
+.job-status.running { flex-direction: column; align-items: stretch; }
+.job-status .steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.job-status .steps li { display: flex; align-items: center; gap: 8px; color: var(--body-text-color-subdued); }
+.job-status .steps li small { margin-left: auto; font-variant-numeric: tabular-nums; }
+.job-status .steps li.active { color: var(--body-text-color); font-weight: 600; }
+.job-status .steps li.done { color: #16a34a; }
+.job-status .dot { width: 10px; height: 10px; border-radius: 50%; border: 2px solid currentColor; flex: none; }
+.job-status .steps li.done .dot { background: currentColor; }
+.job-status .steps li.active .dot { border-color: var(--color-accent); border-top-color: transparent;
+  animation: studio-spin 0.9s linear infinite; }
+.job-status .elapsed { font-size: 0.85em; color: var(--body-text-color-subdued); text-align: right; }
+@keyframes studio-spin { to { transform: rotate(360deg); } }
+
+.next-steps { align-items: center; flex-wrap: wrap; gap: 6px; }
+.next-steps > * { flex: 0 0 auto !important; min-width: 0 !important; }
+.next-label p { margin: 0; font-weight: 600; }
+.result-notice p { margin: 4px 0; }
+.library-detail h3 { margin-top: 0; }
+
+body { overflow-x: hidden; }
