@@ -57,6 +57,7 @@ python app/app.py --port 7860 --offline
 | `YUE2_STUDIO_AUTH=user:password` | Require a login — recommended when the app is reachable from the internet |
 | `--ssl-cert`, `--ssl-key` (`YUE2_STUDIO_SSL_CERT/KEY`) | Serve HTTPS directly; leave unset behind a proxy that talks HTTP to the app |
 | `YUE2_STUDIO_MODEL`, `_VAE`, `_TRANSCRIBER` | Model paths or Hub ids |
+| `YUE2_STUDIO_MAX_REFERENCE` | Longest reference recording transcribed, in seconds (default 1200). Covers, restyles and edits render at most about 5:50 |
 | `YUE2_STUDIO_LYRICS_ASR`, `_LYRICS_ALIGNER` | Qwen3-ASR and forced-aligner paths or Hub ids (original lyrics for covers) |
 | `DEEPSEEK_API_KEY` | Turns on the "Continue with AI" lyric button (hidden when unset) |
 | `YUE2_STUDIO_ASSIST_EFFORT` | Lyric model thinking effort: `low` (default, faster) or `high` (slower, a little better in Korean and Japanese) |
@@ -73,7 +74,7 @@ client = Client("http://127.0.0.1:7860")
 song = client.predict(style="English, warm piano pop, female vocal", lyrics="[Verse]\n...",
                       api_name="/create_song")
 jazz = client.predict(source_id=song["id"], style="English, jazz, Rhodes", api_name="/restyle_song")
-ref = client.predict(handle_file("song.mp3"), 0, 45, False, "", True, "auto", api_name="/transcribe_reference")
+ref = client.predict(handle_file("song.mp3"), 0, 0, False, "", True, "auto", api_name="/transcribe_reference")  # 0, 0: whole file
 print(ref["lyrics"])                    # the sung words, sectioned like the score (a draft to check)
 cover = client.predict(source_id=ref["id"], style="string quartet", kind="instrumental", api_name="/create_cover")
 sung = client.predict(source_id=ref["id"], style="Japanese, city pop", kind="original", api_name="/create_cover")

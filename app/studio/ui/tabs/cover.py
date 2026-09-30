@@ -42,10 +42,7 @@ class CoverTab(Tab):
                                              REFERENCE, "cover.reference")
                 with gr.Group() as self.audio_group:
                     self.upload = gr.Audio(sources=["upload"], type="filepath", label=T("cover.upload"))
-                    with gr.Row():
-                        self.start = gr.Number(0, minimum=0, label=T("cover.start"), info=T("cover.start_info"))
-                        self.length = gr.Number(60, minimum=5, maximum=240, label=T("cover.length"),
-                                                info=T("cover.length_info"))
+                    gr.Markdown(T("cover.upload_info"), elem_classes="fine-print")
                     with gr.Row(visible=self.hearing):
                         self.hear_lyrics = gr.Checkbox(self.hearing, label=T("cover.hear_lyrics"),
                                                        info=T("cover.hear_lyrics_info"), scale=3)
@@ -145,12 +142,11 @@ class CoverTab(Tab):
                          [self.lyrics, self.hear, self.style.language, self.style.vocal], **private).then(
             self.style.compose, self.style.fields, self.style.prompt, **private)
 
-        def transcribe(reference, upload, start, length, abc, keep_harmony, title, hear, language,
-                       request: gr.Request):
+        def transcribe(reference, upload, abc, keep_harmony, title, hear, language, request: gr.Request):
             hear = bool(hear) and reference == "audio" and self.hearing
             params = dict(audio_path=upload if reference == "audio" else None,
                           abc=abc if reference == "abc" else None,
-                          start=start, length=length, keep_harmony=keep_harmony, title=title,
+                          keep_harmony=keep_harmony, title=title,
                           lyrics=hear, language=language)
             steps = (TRANSCRIBE_STEPS + (LYRICS_STEPS if hear else [])) if reference == "audio" else []
             picker = self.picker
@@ -162,7 +158,7 @@ class CoverTab(Tab):
 
         transcribe_outputs = panel.outputs + [self.picker.dropdown]
         transcribe_event = self.transcribe.click(
-            transcribe, [self.reference, self.upload, self.start, self.length, self.abc, self.keep_harmony,
+            transcribe, [self.reference, self.upload, self.abc, self.keep_harmony,
                          self.ref_title, self.hear_lyrics, self.lyrics_language], transcribe_outputs,
             api_visibility="private", **GPU)
         self.stop_button(self.stop1, panel, transcribe_event)

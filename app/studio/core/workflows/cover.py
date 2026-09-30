@@ -151,7 +151,7 @@ class Cover(Workflow):
     name = "cover"
 
     def validate(self, source_id, style, kind="sung", lyrics="", keep_harmony=None, seed=None, title=""):
-        parent = self.source(source_id)
+        parent = self.source(source_id, render=True)
         if kind not in KINDS:
             raise UserError("error.bad_kind")
         if kind == "original" and not lyric_sync.has_words(lyrics):

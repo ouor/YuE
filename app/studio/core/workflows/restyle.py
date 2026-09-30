@@ -32,7 +32,7 @@ class Restyle(Workflow):
     name = "restyle"
 
     def validate(self, source_id, style, lyrics=None, keep_chords=False, seed=None, title=""):
-        parent = self.source(source_id)
+        parent = self.source(source_id, render=True)
         lyrics = parent.lyrics if lyrics is None or not str(lyrics).strip() else lyrics
         return dict(source_id=source_id, style=require(style, "error.style_required"), lyrics=lyrics or "",
                     keep_chords=bool(keep_chords), seed=resolve_seed(seed), title=(title or "").strip())

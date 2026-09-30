@@ -290,7 +290,7 @@ def test_instrumental_from_text_and_song(studio):
     assert from_song.extra["transfer"]["vocal_notes_after"] == 0
 
 
-def test_transcribe_and_covers(studio, tmp_path, score, examples):
+def test_transcribe_and_covers(studio, tmp_path, score, examples, monkeypatch):
     clip = tmp_path / "ref.wav"
     import soundfile as sf
     sf.write(clip, np.zeros((48000 * 8, 2), np.float32), 48000)
@@ -316,6 +316,15 @@ def test_transcribe_and_covers(studio, tmp_path, score, examples):
     later = studio.run("transcribe_lyrics", source_id=reference.id)
     assert "along" in later.lyrics and ("listen", None, False) in studio.engine.calls
     original = studio.run("cover", source_id=heard.id, style="English, pop", kind="original")
+    # A whole recording is transcribed; a score too long for one render is refused before queuing.
+    whole = studio.run("transcribe", audio_path=str(clip))
+    assert whole.extra["length"] == 8.0
+    from studio.core.workflows import base
+    monkeypatch.setattr(base, "MAX_RENDER_SECONDS", 10)
+    with pytest.raises(UserError, match="too_long_to_render"):
+        studio.run("cover", source_id=whole.id, style="piano", kind="instrumental")
+    with pytest.raises(UserError, match="too_long_to_render"):
+        studio.run("restyle", source_id=whole.id, style="jazz")
     assert original.lyrics == heard.lyrics and original.extra["kind"] == "original"
 
 

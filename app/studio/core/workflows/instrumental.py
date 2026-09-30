@@ -37,7 +37,7 @@ class Instrumental(Workflow):
 
     def validate(self, style="", source_id=None, keep_chords=True, plan_mode="full", seed=None, title=""):
         if source_id:
-            self.source(source_id)
+            self.source(source_id, render=True)
         elif not (style or "").strip():
             raise UserError("error.style_required")
         if plan_mode not in ("full", "melody"):

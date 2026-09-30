@@ -6,7 +6,7 @@ from yue2.protocol import SongRequest
 from .. import scores
 from ..jobs import UserError
 from ..models import Operation, ScoreOrigin
-from .base import Workflow, auto_title, register, require, resolve_seed
+from .base import Workflow, auto_title, register, require, require_renderable, resolve_seed
 
 
 @register
@@ -20,6 +20,7 @@ class EditScore(Workflow):
         info = scores.inspect(abc)
         if not info["ok"]:
             raise UserError("error.score_invalid", detail=info["error"])
+        require_renderable(abc)
         style = style if style and style.strip() else (parent.style if parent else "")
         lyrics = lyrics if lyrics is not None and lyrics.strip() else (parent.lyrics if parent else "")
         return dict(abc=abc, source_id=source_id, style=require(style, "error.style_required"), lyrics=lyrics or "",

@@ -7,13 +7,18 @@ import re
 
 import numpy as np
 
-from .. import audio
+from yue2.protocol import GenerationConfig
+
+from .. import audio, scores
 from ..jobs import Cancelled, UserError
 from ...i18n import languages, t
 from ..models import Status
 from ..store import SongStore
 
 WORKFLOWS: dict[str, type["Workflow"]] = {}
+# Semantic tokens run at the codec frame rate (48 kHz / 1920 = 25 per second); keep a little
+# headroom because a score's nominal length and the sung length differ slightly.
+MAX_RENDER_SECONDS = GenerationConfig().semantic.max_tokens / 25 - 10
 
 
 def register(cls):
@@ -33,6 +38,17 @@ def require(value, key):
     if not isinstance(value, str) or not value.strip():
         raise UserError(key)
     return value.strip()
+
+
+def require_renderable(abc):
+    """YuE2 sings at most MAX_RENDER_SECONDS per song; a longer score would be cut off mid-song."""
+    seconds = scores.inspect(abc)["seconds"]
+    if seconds and seconds > MAX_RENDER_SECONDS:
+        raise UserError("error.too_long_to_render", length=clock(seconds), limit=clock(MAX_RENDER_SECONDS))
+
+
+def clock(seconds):
+    return f"{int(seconds) // 60}:{int(seconds) % 60:02d}"
 
 
 def auto_title(lyrics="", style="", lang="en"):
@@ -85,11 +101,15 @@ class Workflow:
             number += 1
         return title
 
-    def source(self, song_id, *, need_score=True):
+    def source(self, song_id, *, need_score=True, render=False):
+        """The parent song; with `render`, its score must also fit in one YuE2 render."""
         if not song_id or not self.store.exists(song_id):
             raise UserError("error.song_missing")
-        if need_score and not self.store.read_score(song_id):
+        score = self.store.read_score(song_id)
+        if need_score and not score:
             raise UserError("error.song_no_score")
+        if render and score:
+            require_renderable(score)
         return self.store.get(song_id)
 
     @contextmanager

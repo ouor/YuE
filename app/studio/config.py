@@ -46,9 +46,9 @@ class Settings:
     # Serve HTTPS directly, e.g. behind a Cloudflare proxy in Full (strict) mode with an origin certificate.
     ssl_certfile: str | None = field(default_factory=lambda: os.environ.get("YUE2_STUDIO_SSL_CERT"))
     ssl_keyfile: str | None = field(default_factory=lambda: os.environ.get("YUE2_STUDIO_SSL_KEY"))
-    # Reference clips longer than this are trimmed before transcription; long
-    # sources can exceed YuE2's generation budget when rendered as a cover.
-    max_reference_seconds: float = 240.0
+    # Whole recordings are transcribed (SheetSage2 and the lyric pass both work in windows);
+    # this only guards a public server against hour-long uploads. Covers have their own limit.
+    max_reference_seconds: float = field(default_factory=lambda: float(os.environ.get("YUE2_STUDIO_MAX_REFERENCE", 1200)))
 
     def with_overrides(self, **values):
         return replace(self, **{k: v for k, v in values.items() if v is not None})
