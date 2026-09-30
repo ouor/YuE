@@ -10,21 +10,25 @@ import gradio as gr
 from ...core import UserError
 from ...core.store import SongStore
 from ...i18n import lang_of, t
+from ..context import MOBILE
 from .score_view import ScoreView
 
 log = logging.getLogger("studio")
 
 # (stage id, label key). A tab passes the steps its workflow reports.
 CREATE_STEPS = [("plan", "step.plan"), ("compose", "step.compose"), ("render", "step.render")]
+# Instant, not smooth: live status updates cancel an in-flight smooth scroll.
+SCROLL_TO = ("() => { if (" + MOBILE + ") setTimeout(() => document.getElementById('%s')"
+             "?.scrollIntoView({block: 'start'}), 150); }")
 KEEP = object()   # present(): leave the "original" player untouched
 RENDER_STEPS = [("plan", "step.prepare"), ("compose", "step.compose"), ("render", "step.render")]
 
 
 class ResultPanel:
-    def __init__(self, ctx, *, compare=False, actions=("restyle", "editor", "instrumental")):
-        self.ctx = ctx
+    def __init__(self, ctx, key, *, compare=False, actions=("restyle", "editor", "instrumental")):
+        self.ctx, self.elem_id = ctx, f"result-{key}"
         T = ctx.T
-        with gr.Group(elem_classes="result-card"):
+        with gr.Group(elem_classes="result-card", elem_id=self.elem_id):
             self.status = ctx.localize(gr.HTML(status_html("idle", t("status.idle")), elem_classes="job-status-wrap"),
                                        lambda lang: status_html("idle", t("status.idle", lang)))
             with gr.Row():
@@ -36,7 +40,8 @@ class ResultPanel:
                 with gr.Tab(T("result.sheet")):
                     self.score = ScoreView()
                 with gr.Tab(T("result.abc")):
-                    self.code = gr.Code(value="", language=None, interactive=False, lines=10, max_lines=18)
+                    self.code = gr.Code(value="", language=None, interactive=False, lines=10, max_lines=18,
+                                        wrap_lines=True)
             self.notice = gr.Markdown(visible=False, elem_classes="result-notice")
             self.record = gr.Button(T("action.record"), variant="primary", visible=False)
             with gr.Row(visible=False, elem_classes="next-steps") as self.actions:
@@ -49,6 +54,11 @@ class ResultPanel:
     def wire(self):
         for name, button in self.nav.items():
             self.ctx.navigate(button, name)
+
+    def follow(self, *triggers):
+        """On phones the card sits below the form: bring it into view when a job starts."""
+        for trigger in triggers:
+            trigger.click(None, None, None, js=SCROLL_TO % self.elem_id, queue=False, api_visibility="private")
 
     # -- streaming -----------------------------------------------------------
     def run(self, workflow, params, request, *, steps=CREATE_STEPS, original=None, on_done=None):

@@ -34,7 +34,8 @@ class LibraryTab(Tab):
             self.refresh_button = gr.Button(T("library.refresh"), scale=0, min_width=120)
         self.ids = gr.State([])
         self.table = gr.Dataframe(headers=["Title", "Type", "Status", "Length", "Created"], interactive=False,
-                                  wrap=True, max_height=320, elem_classes="library-table")
+                                  wrap=True, max_height=320, elem_classes="library-table",
+                                  column_widths=["44%", "16%", "12%", "10%", "18%"])
         with gr.Row(equal_height=False):
             with gr.Column(scale=4):
                 self.selected = gr.Markdown(T("library.empty"), elem_classes="library-detail")
@@ -49,7 +50,7 @@ class LibraryTab(Tab):
                     self.confirm = gr.Button(T("library.confirm_delete"), variant="stop", size="sm", visible=False)
                 self.lineage = gr.Markdown(elem_classes="lineage")
             with gr.Column(scale=6):
-                self.panel = ResultPanel(ctx, compare=True, actions=("restyle", "editor", "instrumental"))
+                self.panel = ResultPanel(ctx, self.id, compare=True, actions=("restyle", "editor", "instrumental"))
         self.open_outputs = [self.table, self.ids]
 
     # -- data -----------------------------------------------------------------

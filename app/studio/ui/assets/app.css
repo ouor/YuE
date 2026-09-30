@@ -1,5 +1,3 @@
-.gradio-container { max-width: 1320px !important; margin: 0 auto; }
-
 .app-header { padding: 6px 4px 0; }
 .app-header h1 { margin-bottom: 0; }
 .app-header p { margin-top: 2px; color: var(--body-text-color-subdued); }
@@ -43,5 +41,54 @@
 .next-label p { margin: 0; font-weight: 600; }
 .result-notice p { margin: 4px 0; }
 .library-detail h3 { margin-top: 0; }
+/* The details accordion sits inside the style group; drop the default block frame there. */
+.mobile-collapse { border: none !important; border-top: 1px solid var(--border-color-primary) !important; border-radius: 0 !important; }
 
-body { overflow-x: hidden; }
+/* ---- Bottom tab bar (phones only) ---- */
+.mobile-nav { display: none !important; }
+
+@media (max-width: 767px) {
+  .app-footer { margin-bottom: calc(76px + env(safe-area-inset-bottom)) !important; }
+
+  .app-header h1 { font-size: 1.35em; margin: 4px 0 0; }
+  .app-header p { display: none; }
+  .tab-intro p { font-size: 0.9em; }
+  .step-title h3 { margin-top: 10px; }
+
+  /* The bottom bar replaces the top tab strip, which collapses into an overflow menu on phones. */
+  #main-tabs > .tab-wrapper { display: none !important; }
+
+  .mobile-nav {
+    display: flex !important; flex-wrap: nowrap !important; gap: 2px !important;
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 1000; margin: 0 !important;
+    padding: 4px 4px calc(4px + env(safe-area-inset-bottom)) !important;
+    background: var(--background-fill-primary); border-top: 1px solid var(--border-color-primary);
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.18);
+  }
+  .mobile-nav > button.nav-item {
+    flex: 1 1 0 !important; min-width: 0 !important; height: 56px; padding: 2px 0 !important;
+    white-space: pre-line; line-height: 1.25; font-size: 11px !important; border-radius: 10px;
+  }
+
+  /* 16px inputs stop iOS from zooming in on focus; larger touch targets for small buttons. */
+  input, textarea, select, .cm-content { font-size: 16px !important; }
+  button.sm { min-height: 38px; }
+  .preset-row, .tag-row, .next-steps { gap: 6px; }
+  .preset-row .preset-label, .next-steps .next-label { flex-basis: 100% !important; }
+
+  .job-status { padding: 10px 12px; }
+  .result-card { scroll-margin-top: 8px; }
+
+  /* Library table: fit the screen; title, type and length are enough on a phone.
+     Header cells are <th>; body rows are virtualized div.virtual-row > div.body-cell. */
+  .library-table th, .library-table td, .library-table .body-cell { min-width: 0 !important; }
+  .library-table table { width: 100% !important; table-layout: fixed; }
+  .library-table th:nth-child(3), .library-table td:nth-child(3), .library-table .virtual-row > .body-cell:nth-child(3),
+  .library-table th:nth-child(5), .library-table td:nth-child(5), .library-table .virtual-row > .body-cell:nth-child(5) { display: none !important; }
+  .library-table th:nth-child(1), .library-table td:nth-child(1), .library-table .virtual-row > .body-cell:nth-child(1) { width: 58% !important; max-width: none !important; flex: 0 0 58% !important; }
+  .library-table th:nth-child(2), .library-table td:nth-child(2), .library-table .virtual-row > .body-cell:nth-child(2) { width: 26% !important; max-width: none !important; flex: 0 0 26% !important; }
+  .library-table th:nth-child(4), .library-table td:nth-child(4), .library-table .virtual-row > .body-cell:nth-child(4) { width: 16% !important; max-width: none !important; flex: 0 0 16% !important; }
+}
+
+/* Long ABC lines wrap inside the editor instead of widening the page. */
+.cm-editor { max-width: 100%; min-width: 0; }

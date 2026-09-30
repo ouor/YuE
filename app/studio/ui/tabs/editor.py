@@ -48,7 +48,7 @@ class EditorTab(Tab):
         self.picker = SongPicker(ctx, "editor.source", accept=has_score)
         with gr.Row(equal_height=False):
             with gr.Column(scale=5):
-                self.code = gr.Code(value="", language=None, interactive=True, lines=22, max_lines=40,
+                self.code = gr.Code(value="", language=None, interactive=True, lines=22, max_lines=40, wrap_lines=True,
                                     label=T("editor.abc"))
                 with gr.Row():
                     self.bpm = gr.Number(None, precision=0, minimum=40, maximum=240, label=T("editor.tempo"), scale=2)
@@ -74,7 +74,7 @@ class EditorTab(Tab):
                     self.run_button = gr.Button(T("editor.run"), variant="primary", size="lg", scale=3)
                     self.stop = gr.Button(T("action.stop"), variant="stop", size="lg", scale=1)
             with gr.Column(scale=6):
-                self.panel = ResultPanel(ctx, compare=True, actions=("editor", "restyle", "instrumental"))
+                self.panel = ResultPanel(ctx, self.id, compare=True, actions=("editor", "restyle", "instrumental"))
         self.open_outputs = [self.picker.dropdown]
 
     def open(self, song_id, lang):
@@ -112,5 +112,6 @@ class EditorTab(Tab):
             render, [self.code, self.picker.dropdown, self.style, self.lyrics, self.seed, self.title], panel.outputs,
             api_visibility="private", **GPU)
         self.stop_button(self.stop, panel, run_event)
+        panel.follow(self.run_button)
         panel.wire()
         self.on_select(self.tab)

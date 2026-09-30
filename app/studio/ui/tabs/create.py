@@ -51,7 +51,7 @@ class CreateTab(Tab):
                     self.run_button = gr.Button(T("create.run"), variant="primary", size="lg", scale=3)
                     self.stop = gr.Button(T("action.stop"), variant="stop", size="lg", scale=1)
             with gr.Column(scale=6):
-                self.panel = ResultPanel(ctx)
+                self.panel = ResultPanel(ctx, self.id)
 
         for (title, lyrics), button in zip(EXAMPLES, self.examples):
             button.click(lambda t=title, l=lyrics: (t, l), None, [self.title, self.lyrics], queue=False,
@@ -75,4 +75,5 @@ class CreateTab(Tab):
             api_visibility="private", **GPU)
         record_event = panel.record.click(record, [self.ctx.current_song], panel.outputs, api_visibility="private", **GPU)
         self.stop_button(self.stop, panel, run_event, record_event)
+        panel.follow(self.run_button, panel.record)
         panel.wire()

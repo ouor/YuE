@@ -43,7 +43,7 @@ class RestyleTab(Tab):
                     self.run_button = gr.Button(T("restyle.run"), variant="primary", size="lg", scale=3)
                     self.stop = gr.Button(T("action.stop"), variant="stop", size="lg", scale=1)
             with gr.Column(scale=6):
-                self.panel = ResultPanel(ctx, compare=True, actions=("restyle", "editor", "instrumental"))
+                self.panel = ResultPanel(ctx, self.id, compare=True, actions=("restyle", "editor", "instrumental"))
         self.open_outputs = [self.picker.dropdown]
 
     def open(self, song_id, lang):
@@ -74,5 +74,6 @@ class RestyleTab(Tab):
             restyle, [self.picker.dropdown, self.style.prompt, self.lyrics, self.keep_chords, self.seed, self.title],
             panel.outputs, api_visibility="private", **GPU)
         self.stop_button(self.stop, panel, run_event)
+        panel.follow(self.run_button)
         panel.wire()
         self.on_select(self.tab)

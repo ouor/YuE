@@ -10,6 +10,8 @@ from ..core import Studio
 from ..i18n import lang_of, t, translations
 
 GPU = dict(concurrency_id="gpu", concurrency_limit=1)   # every model call shares one queue slot
+MOBILE = "window.matchMedia('(max-width: 767px)').matches"
+SCROLL_TOP = "() => { if (" + MOBILE + ") window.scrollTo({top: 0}); }"
 
 
 @dataclass
@@ -44,6 +46,7 @@ class UIContext:
 
         trigger.click(go, [song or self.current_song], [self.tabs, self.current_song, *page.open_outputs],
                       queue=False, api_visibility="private")
+        trigger.click(None, None, None, js=SCROLL_TOP, queue=False, api_visibility="private")
 
     @property
     def localized_components(self):

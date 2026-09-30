@@ -21,27 +21,29 @@ class StyleBuilder:
                                            for name in self.preset_names]
             else:
                 self.preset_buttons = []
-            with gr.Row():
-                self.language = ctx.choices(gr.Dropdown(
-                    choices=list(styles.LANGUAGES), value=default.get("language"), label=T("style.language"),
-                    visible=not instrumental, scale=1), styles.LANGUAGES, "language")
-                self.vocal = ctx.choices(gr.Radio(
-                    choices=list(styles.VOCALS), value=default.get("vocal"), label=T("style.vocal"),
-                    visible=not instrumental, scale=2), styles.VOCALS, "vocal")
-            with gr.Row():
-                self.genres = ctx.choices(gr.Dropdown(
-                    choices=list(styles.GENRES), value=default.get("genres"), multiselect=True, max_choices=3,
-                    label=T("style.genre")), styles.GENRES, "genre")
-                self.moods = ctx.choices(gr.Dropdown(
-                    choices=list(styles.MOODS), value=default.get("moods"), multiselect=True, max_choices=3,
-                    label=T("style.mood")), styles.MOODS, "mood")
-            self.instruments = ctx.choices(gr.Dropdown(
-                choices=list(styles.INSTRUMENTS), value=default.get("instruments"), multiselect=True,
-                label=T("style.instruments")), styles.INSTRUMENTS, "instrument")
-            with gr.Row():
-                self.bpm = gr.Slider(0, 200, value=default.get("bpm") or 0, step=1, label=T("style.tempo"),
-                                     info=T("style.tempo_info"), scale=1)
-                self.extra = gr.Textbox(label=T("style.extra"), placeholder=T("style.extra_placeholder"), scale=2)
+            # Open on desktop; the mobile script collapses it so presets and the prompt stay in view.
+            with gr.Accordion(T("style.details"), open=True, elem_classes="mobile-collapse"):
+                with gr.Row():
+                    self.language = ctx.choices(gr.Dropdown(
+                        choices=list(styles.LANGUAGES), value=default.get("language"), label=T("style.language"),
+                        visible=not instrumental, scale=1), styles.LANGUAGES, "language")
+                    self.vocal = ctx.choices(gr.Radio(
+                        choices=list(styles.VOCALS), value=default.get("vocal"), label=T("style.vocal"),
+                        visible=not instrumental, scale=2), styles.VOCALS, "vocal")
+                with gr.Row():
+                    self.genres = ctx.choices(gr.Dropdown(
+                        choices=list(styles.GENRES), value=default.get("genres"), multiselect=True, max_choices=3,
+                        label=T("style.genre")), styles.GENRES, "genre")
+                    self.moods = ctx.choices(gr.Dropdown(
+                        choices=list(styles.MOODS), value=default.get("moods"), multiselect=True, max_choices=3,
+                        label=T("style.mood")), styles.MOODS, "mood")
+                self.instruments = ctx.choices(gr.Dropdown(
+                    choices=list(styles.INSTRUMENTS), value=default.get("instruments"), multiselect=True,
+                    label=T("style.instruments")), styles.INSTRUMENTS, "instrument")
+                with gr.Row():
+                    self.bpm = gr.Slider(0, 200, value=default.get("bpm") or 0, step=1, label=T("style.tempo"),
+                                         info=T("style.tempo_info"), scale=1)
+                    self.extra = gr.Textbox(label=T("style.extra"), placeholder=T("style.extra_placeholder"), scale=2)
             self.prompt = gr.Textbox(value=self.compose(*self.values(default)), label=T("style.prompt"),
                                      info=T("style.prompt_info"), lines=2, max_lines=4, interactive=True)
         self.fields = [self.language, self.vocal, self.genres, self.moods, self.instruments, self.bpm, self.extra]

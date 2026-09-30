@@ -40,7 +40,8 @@ class CoverTab(Tab):
                                                 info=T("cover.length_info"))
                 with gr.Group(visible=False) as self.abc_group:
                     self.abc_file = gr.File(file_types=[".abc", ".txt"], type="filepath", label=T("cover.abc_file"))
-                    self.abc = gr.Code(value="", language=None, interactive=True, lines=10, label=T("cover.abc"))
+                    self.abc = gr.Code(value="", language=None, interactive=True, lines=10, label=T("cover.abc"),
+                                        wrap_lines=True)
                 self.keep_harmony = gr.Checkbox(False, label=T("cover.keep_harmony"), info=T("cover.keep_harmony_info"))
                 self.ref_title = gr.Textbox(label=T("field.title"), placeholder=T("cover.title_placeholder"))
                 with gr.Row():
@@ -61,7 +62,7 @@ class CoverTab(Tab):
                     self.stop2 = gr.Button(T("action.stop"), variant="stop", size="lg", scale=1)
                 gr.Markdown(T("cover.rights"), elem_classes="fine-print")
             with gr.Column(scale=6):
-                self.panel = ResultPanel(ctx, compare=True, actions=("editor", "restyle"))
+                self.panel = ResultPanel(ctx, self.id, compare=True, actions=("editor", "restyle"))
         self.open_outputs = [self.picker.dropdown]
 
     def open(self, song_id, lang):
@@ -125,5 +126,6 @@ class CoverTab(Tab):
             cover, [self.picker.dropdown, self.kind, self.lyrics, self.style.prompt, self.keep_harmony, self.seed,
                     self.title], panel.outputs, api_visibility="private", **GPU)
         self.stop_button(self.stop2, panel, run_event)
+        panel.follow(self.transcribe, self.run_button)
         panel.wire()
         self.on_select(self.tab)
