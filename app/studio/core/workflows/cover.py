@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 from yue2.protocol import SongRequest
 
@@ -9,7 +10,8 @@ from .. import audio, scores
 from ..jobs import UserError
 from ..models import Operation, ScoreOrigin, Status
 from ..store import SongStore
-from .base import Workflow, derived_title, register, require, resolve_seed
+from ...i18n import t
+from .base import Workflow, register, require, resolve_seed
 from .instrumental import convert, instrumental_request
 
 KINDS = ("sung", "instrumental")
@@ -28,7 +30,7 @@ class Transcribe(Workflow):
             if not info["ok"]:
                 raise UserError("error.score_invalid", detail=info["error"])
             return dict(audio_path=None, abc=abc if abc.endswith("\n") else abc + "\n", start=0.0, length=None,
-                        keep_harmony=bool(keep_harmony), title=(title or "").strip() or "ABC reference")
+                        keep_harmony=bool(keep_harmony), title=(title or "").strip())
         path = Path(audio_path)
         if not path.is_file():
             raise UserError("error.reference_required")
@@ -46,6 +48,10 @@ class Transcribe(Workflow):
                     keep_harmony=bool(keep_harmony), title=(title or "").strip() or path.stem[:40])
 
     def run(self, ctx, audio_path, abc, start, length, keep_harmony, title):
+        if not title:
+            # A pasted score: use its T: line when it has one.
+            named = re.search(r"^T:(.+)$", abc or "", re.M)
+            title = named.group(1).strip()[:40] if named and named.group(1).strip() else t("title.pasted_score", ctx.lang)
         origin = ScoreOrigin.TRANSCRIBED if audio_path else ScoreOrigin.USER
         meta = self.store.create(Operation.TRANSCRIBE, title, score_origin=origin.value, mode=scores.mode_for(abc) if abc else
                                  ("full" if keep_harmony else "melody"),
@@ -94,7 +100,7 @@ class Cover(Workflow):
         parent = self.store.get(source_id)
         score = self.store.read_score(source_id)
         meta = self.store.create(
-            Operation.COVER, title or derived_title(parent, "cover"), parent_id=source_id, style=style, lyrics=lyrics,
+            Operation.COVER, title or self.derived_title(parent, "cover", ctx.lang), parent_id=source_id, style=style, lyrics=lyrics,
             seed=seed, score_origin=ScoreOrigin.CONVERTED.value if kind == "instrumental" else parent.score_origin,
             extra={"kind": kind, "keep_harmony": keep_harmony})
         ctx.emit("song", song_id=meta.id)

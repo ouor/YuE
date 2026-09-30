@@ -1,6 +1,7 @@
 """ABC score helpers, reusing the yue2-music skill's verified tools."""
 from __future__ import annotations
 
+from fractions import Fraction
 from functools import lru_cache
 import importlib
 import re
@@ -152,6 +153,56 @@ def to_instrumental(text, keep_chords=True):
     """Move every Vocal note to Ins; returns (score, transfer report)."""
     text = settle_key_changes(native_sections(text))
     return tools()["instrumentalize"].convert_score(text, overlap="vocal", keep_chords=keep_chords)
+
+
+def melody_outline(text, rest_gap=Fraction(1, 2), held=Fraction(1), longest=14, shortest=4):
+    """The sung shape of a score: one entry per section, with the note count of each phrase.
+
+    A phrase ends at a rest of at least `rest_gap` quarter notes, or after a note held for
+    `held` quarters once the phrase has a few notes; phrases longer than `longest` notes are
+    split at bar lines. Each note is roughly one sung syllable, which is what lyric writing
+    needs: [{"label": "verse", "phrases": [8, 7]}]. Sections without vocal notes come back
+    with no phrases (instrumental passages).
+    """
+    text = settle_key_changes(native_sections(text))
+    score = parse(text)
+    vocal = score.voices["Vocal"]
+    bar_starts = {start for start, _, _ in vocal.bars}
+    starts = sorted(tools()["instrumentalize"].section_starts(text, score).items())
+    sections = [{"label": label, "start": start, "phrases": []} for start, label in starts]
+    if not sections or sections[0]["start"] > 0:
+        sections.insert(0, {"label": "verse", "start": Fraction(0), "phrases": []})
+    previous = None                      # (section index, end time, duration) of the last note
+    for start, _pitch, duration in vocal.notes:
+        index = max(i for i, section in enumerate(sections) if section["start"] <= start)
+        phrases = sections[index]["phrases"]
+        new_phrase = (previous is None or index != previous[0] or start - previous[1] >= rest_gap
+                      or (previous[2] >= held and phrases and phrases[-1] >= 4)
+                      or (start in bar_starts and phrases and phrases[-1] >= longest))
+        if new_phrase or not phrases:
+            phrases.append(0)
+        phrases[-1] += 1
+        previous = (index, start + duration, duration)
+    # A couple of notes before a section (a pickup) belong to the next section's first line.
+    for current, following in zip(sections, sections[1:]):
+        if 0 < sum(current["phrases"]) < 4:
+            if following["phrases"]:
+                following["phrases"][0] += sum(current["phrases"])
+            current["phrases"] = []
+    for section in sections:
+        section["phrases"] = _merge_short(section["phrases"], shortest)
+    return [{"label": s["label"], "phrases": s["phrases"]} for s in sections]
+
+
+def _merge_short(phrases, shortest):
+    """Fold fragments (a held note splitting a line) into a neighbouring phrase."""
+    merged = []
+    for count in phrases:
+        if merged and (count < shortest or merged[-1] < shortest):
+            merged[-1] += count
+        else:
+            merged.append(count)
+    return merged
 
 
 def lyric_template(text):

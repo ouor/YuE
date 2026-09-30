@@ -4,6 +4,7 @@ from __future__ import annotations
 import gradio as gr
 
 from ...core import styles
+from ..components.lyrics_assist import LyricsAssist
 from ..components.result_panel import RENDER_STEPS, ResultPanel, original_update
 from ..components.score_view import ScoreView
 from ..components.song_picker import SongPicker, has_score
@@ -32,9 +33,11 @@ class RestyleTab(Tab):
                 with gr.Accordion(T("restyle.source_score"), open=False):
                     self.source_score = ScoreView()
                 gr.Markdown(T("restyle.step2"), elem_classes="step-title")
-                self.style = StyleBuilder(ctx, presets=["city_pop", "rock_anthem", "kpop_dance", "piano_pop"],
-                                          value=styles.PRESETS["rock_anthem"], keep_language=True)
+                self.style = StyleBuilder(ctx, presets=styles.PRESET_GROUPS["restyle"], keep_language=True)
                 self.lyrics = gr.Textbox(label=T("field.lyrics"), info=T("restyle.lyrics_info"), lines=8, max_lines=24)
+                # New words must still fit the kept melody.
+                self.assist = LyricsAssist(ctx, self.lyrics, self.style.prompt, melody=self.picker.dropdown,
+                                           melody_is_song=True)
                 self.keep_chords = gr.Checkbox(False, label=T("restyle.keep_chords"), info=T("restyle.keep_chords_info"))
                 with gr.Accordion(T("field.advanced"), open=False):
                     self.title = gr.Textbox(label=T("field.title"), placeholder=T("field.title_auto"))
@@ -74,6 +77,7 @@ class RestyleTab(Tab):
             restyle, [self.picker.dropdown, self.style.prompt, self.lyrics, self.keep_chords, self.seed, self.title],
             panel.outputs, api_visibility="private", **GPU)
         self.stop_button(self.stop, panel, run_event)
+        self.assist.wire()
         panel.follow(self.run_button)
         panel.wire()
         self.on_select(self.tab)

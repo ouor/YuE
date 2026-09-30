@@ -8,12 +8,22 @@ import gradio as gr
 from ...i18n import t
 
 
-def song_label(meta, lang):
+def short_date(stamp, lang):
     try:
-        stamp = datetime.fromisoformat(meta.created_at).astimezone().strftime("%m-%d %H:%M")
+        moment = datetime.fromisoformat(stamp).astimezone()
     except ValueError:
-        stamp = meta.created_at
-    return f"{meta.title} · {t('op.' + meta.operation, lang)} · {stamp}"
+        return stamp
+    return t("date.short", lang, mon=moment.strftime("%b"), month=moment.month, day=moment.day,
+             time=moment.strftime("%H:%M"))
+
+
+def song_label(meta, lang):
+    """'Title · Type · date'; the type is left out when the title already says it, e.g. 'Title (cover)'."""
+    parts = [meta.title]
+    if not meta.title.endswith(")"):
+        parts.append(t("op." + meta.operation, lang))
+    parts.append(short_date(meta.created_at, lang))
+    return " · ".join(parts)
 
 
 class SongPicker:

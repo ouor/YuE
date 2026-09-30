@@ -28,9 +28,11 @@ class Event:
 
 
 class JobContext:
-    def __init__(self, emit: Callable[[Event], None] | None = None, cancel: threading.Event | None = None):
+    def __init__(self, emit: Callable[[Event], None] | None = None, cancel: threading.Event | None = None,
+                 lang: str = "en"):
         self._emit = emit
         self.cancel_event = cancel or threading.Event()
+        self.lang = lang                # language for text the job writes (e.g. generated titles)
 
     def emit(self, kind, **data):
         if self._emit is not None:
@@ -101,14 +103,14 @@ class JobRegistry:
 
 
 def stream(fn: Callable[[JobContext], Any], cancel: threading.Event | None = None, tick: float = 1.0,
-           done: threading.Event | None = None) -> Iterator[Event]:
+           done: threading.Event | None = None, lang: str = "en") -> Iterator[Event]:
     """Run fn(ctx) on a worker thread and yield its events; ends with done or error.
 
     Closing the generator (e.g. a cancelled Gradio event) sets the cancel flag so
     the model loop stops at its next cancellation check.
     """
     events: queue.Queue = queue.Queue()
-    ctx = JobContext(events.put, cancel)
+    ctx = JobContext(events.put, cancel, lang)
 
     def worker():
         try:

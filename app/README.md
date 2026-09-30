@@ -52,6 +52,9 @@ python app/app.py --port 7860 --offline
 | `YUE2_STUDIO_AUTH=user:password` | Require a login — recommended when the app is reachable from the internet |
 | `--ssl-cert`, `--ssl-key` (`YUE2_STUDIO_SSL_CERT/KEY`) | Serve HTTPS directly; leave unset behind a proxy that talks HTTP to the app |
 | `YUE2_STUDIO_MODEL`, `_VAE`, `_TRANSCRIBER` | Model paths or Hub ids |
+| `DEEPSEEK_API_KEY` | Turns on the "Continue with AI" lyric button (hidden when unset) |
+| `YUE2_STUDIO_ASSIST_EFFORT` | Lyric model thinking effort: `low` (default, faster) or `high` (slower, a little better in Korean and Japanese) |
+| `YUE2_STUDIO_ASSIST_BASE_URL`, `_MODEL` | Another OpenAI-compatible endpoint/model (default DeepSeek `deepseek-flash`) |
 
 ## API
 

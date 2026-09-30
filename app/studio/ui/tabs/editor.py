@@ -6,7 +6,9 @@ import re
 import gradio as gr
 
 from ...core import scores
+from ...core.messages import explain_abc
 from ...i18n import lang_of, t
+from ..components.lyrics_assist import LyricsAssist
 from ..components.result_panel import RENDER_STEPS, ResultPanel, original_update
 from ..components.score_view import ScoreView
 from ..components.song_picker import SongPicker, has_score
@@ -27,8 +29,8 @@ def tempo_of(abc):
 
 def check_markdown(info, lang):
     if not info["ok"]:
-        return "❌ " + t("editor.invalid", lang, detail=info["error"] or "")
-    lines = ["✅ " + t("editor.valid", lang, bpm=info["bpm"], key=info["key"], meter=info["meter"],
+        return t("editor.invalid", lang, detail=explain_abc(info["error"], lang))
+    lines = [t("editor.valid", lang, bpm=info["bpm"], key=info["key"], meter=info["meter"],
                          measures=info["measures"], seconds=info["seconds"])]
     changes = info.get("changes")
     if changes and changes.get("checked"):
@@ -67,6 +69,7 @@ class EditorTab(Tab):
             with gr.Column(scale=5):
                 self.style = gr.Textbox(label=T("style.prompt"), info=T("editor.style_info"), lines=2)
                 self.lyrics = gr.Textbox(label=T("field.lyrics"), info=T("editor.lyrics_info"), lines=8, max_lines=24)
+                self.assist = LyricsAssist(ctx, self.lyrics, self.style, melody=self.code)
                 with gr.Accordion(T("field.advanced"), open=False):
                     self.title = gr.Textbox(label=T("field.title"), placeholder=T("field.title_auto"))
                     self.seed = gr.Number(-1, precision=0, label=T("field.seed"), info=T("field.seed_info"))
@@ -112,6 +115,7 @@ class EditorTab(Tab):
             render, [self.code, self.picker.dropdown, self.style, self.lyrics, self.seed, self.title], panel.outputs,
             api_visibility="private", **GPU)
         self.stop_button(self.stop, panel, run_event)
+        self.assist.wire()
         panel.follow(self.run_button)
         panel.wire()
         self.on_select(self.tab)

@@ -4,6 +4,7 @@ from __future__ import annotations
 import gradio as gr
 
 from ...core import styles
+from ..components.lyrics_assist import LyricsAssist
 from ..components.result_panel import CREATE_STEPS, ResultPanel
 from ..components.style_builder import StyleBuilder
 from ..context import GPU
@@ -31,11 +32,12 @@ class CreateTab(Tab):
         with gr.Row(equal_height=False):
             with gr.Column(scale=5):
                 gr.Markdown(T("create.step1"), elem_classes="step-title")
-                self.style = StyleBuilder(ctx, presets=["piano_pop", "city_pop", "kpop_dance", "rock_anthem"])
+                self.style = StyleBuilder(ctx, presets=styles.PRESET_GROUPS["create"])
                 gr.Markdown(T("create.step2"), elem_classes="step-title")
                 self.title = gr.Textbox(label=T("field.title"), placeholder=T("field.title_placeholder"))
                 self.lyrics = gr.Textbox(value=EXAMPLES[0][1], label=T("field.lyrics"), info=T("field.lyrics_info"),
                                          lines=12, max_lines=30)
+                self.assist = LyricsAssist(ctx, self.lyrics, self.style.prompt, title=self.title)
                 with gr.Row(elem_classes="tag-row"):
                     self.tags = [gr.Button(f"+ {tag}", size="sm", variant="secondary") for tag in styles.SECTION_TAGS]
                 # Buttons instead of gr.Examples: its table headers cannot show translated labels.
@@ -75,5 +77,6 @@ class CreateTab(Tab):
             api_visibility="private", **GPU)
         record_event = panel.record.click(record, [self.ctx.current_song], panel.outputs, api_visibility="private", **GPU)
         self.stop_button(self.stop, panel, run_event, record_event)
+        self.assist.wire()
         panel.follow(self.run_button, panel.record)
         panel.wire()

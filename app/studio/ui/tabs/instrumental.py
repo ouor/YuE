@@ -32,8 +32,7 @@ class InstrumentalTab(Tab):
                     self.keep_chords = gr.Checkbox(True, label=T("instrumental.keep_chords"),
                                                    info=T("instrumental.keep_chords_info"))
                 gr.Markdown(T("instrumental.sound"), elem_classes="step-title")
-                self.style = StyleBuilder(ctx, instrumental=True, value=styles.PRESETS["lofi_study"],
-                                          presets=["lofi_study", "cafe_jazz", "cinematic", "reading_piano"])
+                self.style = StyleBuilder(ctx, instrumental=True, presets=styles.PRESET_GROUPS["instrumental"])
                 with gr.Accordion(T("field.advanced"), open=False):
                     self.plan_mode = ctx.choices(gr.Radio(list(PLAN_MODES), value="full", label=T("field.mode"),
                                                           info=T("instrumental.plan_mode_info")), PLAN_MODES, "mode")

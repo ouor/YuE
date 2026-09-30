@@ -25,7 +25,7 @@ class CreateSong(Workflow):
                     title=(title or "").strip(), mode=mode, seed=resolve_seed(seed), review_first=bool(review_first))
 
     def run(self, ctx, style, lyrics, title, mode, seed, review_first):
-        meta = self.store.create(Operation.CREATE, title or auto_title(lyrics, style), style=style, lyrics=lyrics,
+        meta = self.store.create(Operation.CREATE, title or auto_title(lyrics, style, ctx.lang), style=style, lyrics=lyrics,
                                  mode=mode, seed=seed,
                                  score_origin=(ScoreOrigin.NONE if mode == "off" else ScoreOrigin.YUE2).value)
         ctx.emit("song", song_id=meta.id)

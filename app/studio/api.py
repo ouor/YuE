@@ -10,6 +10,7 @@ import gradio as gr
 
 from . import __version__
 from .core import UserError
+from .core.messages import user_message
 from .core.store import SongNotFound
 from .core.workflows import WORKFLOWS
 from .i18n import t
@@ -30,7 +31,7 @@ def register_api(studio):
         try:
             meta = studio.run(name, **params)
         except UserError as exc:
-            raise gr.Error(f"{t(exc.key, **exc.params)} ({exc.key})")
+            raise gr.Error(f"{user_message(exc, 'en')} ({exc.key})")
         return studio.song(meta.id)
 
     @gr.api(api_name="health", queue=False)
@@ -100,6 +101,20 @@ def register_api(studio):
         """Cover a reference (from /transcribe_reference or /transcribe_abc). kind: sung | instrumental."""
         return run("cover", source_id=source_id, style=style, kind=kind, lyrics=lyrics, keep_harmony=keep_harmony,
                    seed=seed, title=title)
+
+    @gr.api(api_name="complete_lyrics", concurrency_id="assist", concurrency_limit=4)
+    def complete_lyrics(style: str = "", lyrics: str = "", title: str = "", theme: str = "", source_id: str = "",
+                        abc: str = "") -> str:
+        """Finish lyrics with AI, keeping the lines already written. With source_id or abc, fit that melody."""
+        try:
+            request = studio.lyrics_request(style=style, lyrics=lyrics, title=title, theme=theme,
+                                            melody_abc=abc or None, source_id=source_id or None)
+            text = ""
+            for text in studio.stream_lyrics(request):
+                pass
+            return text
+        except UserError as exc:
+            raise gr.Error(f"{user_message(exc, 'en')} ({exc.key})")
 
     @gr.api(api_name="list_songs", queue=False)
     def list_songs(operation: str = "", query: str = "") -> list:

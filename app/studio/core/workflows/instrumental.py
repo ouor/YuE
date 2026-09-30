@@ -9,7 +9,7 @@ from .. import scores
 from ..jobs import UserError
 from ..models import Operation, ScoreOrigin
 from ..store import SongStore
-from .base import Workflow, auto_title, derived_title, register, resolve_seed
+from .base import Workflow, auto_title, register, resolve_seed
 
 PLANNING_LYRICS = "[Intro]\n\n[Verse]\n\n[Chorus]\n\n[Outro]\n"   # planner-only section tags, never sung
 
@@ -49,7 +49,7 @@ class Instrumental(Workflow):
         parent = self.store.get(source_id) if source_id else None
         style = style or (parent.style if parent else "")
         meta = self.store.create(
-            Operation.INSTRUMENTAL, title or (derived_title(parent, "instrumental") if parent else auto_title("", style)),
+            Operation.INSTRUMENTAL, title or (self.derived_title(parent, "instrumental", ctx.lang) if parent else auto_title("", style, ctx.lang)),
             parent_id=source_id, style=scores.instrumental_style(style), mode=plan_mode, seed=seed,
             score_origin=ScoreOrigin.CONVERTED.value, extra={"keep_chords": keep_chords})
         ctx.emit("song", song_id=meta.id)

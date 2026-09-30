@@ -8,6 +8,7 @@ import time
 import gradio as gr
 
 from ...core import UserError
+from ...core.messages import user_message
 from ...core.store import SongStore
 from ...i18n import lang_of, t
 from ..context import MOBILE
@@ -66,14 +67,14 @@ class ResultPanel:
         view = JobView(self, lang_of(request), steps)
         yield view.start(original)
         try:
-            for event in self.ctx.studio.stream(workflow, session=request.session_hash, **params):
+            for event in self.ctx.studio.stream(workflow, session=request.session_hash, lang=view.lang, **params):
                 updates = view.apply(event)
                 if view.meta is not None and on_done is not None:
                     updates.update(on_done(view.meta, view.lang))
                 if updates:
                     yield updates
         except UserError as exc:
-            yield view.fail(t(exc.key, view.lang, **exc.params))
+            yield view.fail(user_message(exc, view.lang))
 
     def stopped(self, song_id, lang):
         """View after a Stop: the saved score (and Record button) if the job got that far."""
@@ -100,15 +101,14 @@ class JobView:
         self.panel, self.lang, self.steps = panel, lang, steps
         self.store = panel.ctx.studio.store
         self.started = time.monotonic()
-        self.active, self.done, self.detail = None, [], ""
+        self.active, self.done = None, []
         self.song_id, self.meta = None, None
 
     def _status(self):
         items = []
         for stage, key in self.steps:
             state = "done" if stage in self.done else "active" if stage == self.active else "pending"
-            extra = f"<small>{html.escape(self.detail)}</small>" if state == "active" and self.detail else ""
-            items.append(f'<li class="{state}"><span class="dot"></span>{html.escape(t(key, self.lang))}{extra}</li>')
+            items.append(f'<li class="{state}"><span class="dot"></span>{html.escape(t(key, self.lang))}</li>')
         elapsed = t("status.elapsed", self.lang, time=clock(time.monotonic() - self.started))
         return (f'<div class="job-status running"><ol class="steps">{"".join(items)}</ol>'
                 f'<div class="elapsed">{elapsed}</div></div>')
@@ -133,16 +133,10 @@ class JobView:
                 self.done.append(self.active)
             # Stages skipped by this run (e.g. no planning for a provided score) count as done.
             self.done.extend(s for s in known[:known.index(stage)] if s not in self.done)
-            self.active, self.detail = stage, ""
+            self.active = stage
             return {p.status: self._status()}
-        if event.kind == "tick":
+        if event.kind in {"tick", "tokens", "transcribe"}:
             return {p.status: self._status()} if self.active else {}
-        if event.kind == "tokens":
-            self.detail = t("status.tokens", self.lang, count=f"{data['count']:,}")
-            return {p.status: self._status()}
-        if event.kind == "transcribe":
-            self.detail = str(data.get("stage", "")).replace("_", " ")
-            return {p.status: self._status()}
         if event.kind == "score":
             return {p.score: data["abc"], p.code: data["abc"]}
         if event.kind == "done":
@@ -153,7 +147,7 @@ class JobView:
                 return self.fail(t("status.cancelled", self.lang), kind="cancelled")
             exc = data["exception"]
             if isinstance(exc, UserError):
-                return self.fail(t(exc.key, self.lang, **exc.params))
+                return self.fail(user_message(exc, self.lang))
             log.error("Job failed", exc_info=exc)
             return self.fail(t("error.unexpected", self.lang, detail=f"{type(exc).__name__}: {exc}"))
         return {}
@@ -182,7 +176,7 @@ class JobView:
             message, kind = t("status.done", lang, seconds=f"{meta.duration or 0:.0f}",
                               time=clock(elapsed if elapsed is not None else meta_seconds(meta))), "done"
         else:
-            message, kind = t("status.failed_song", lang, detail=meta.error or meta.status), "error"
+            message, kind = t("status.failed_song", lang, detail=failure_text(meta, lang)), "error"
         notes = describe(meta, lang)
         return {p.status: status_html(kind, message), p.audio: str(audio) if audio else None,
                 p.original: gr.skip() if original is KEEP else original_update(original),
@@ -196,6 +190,13 @@ class JobView:
 def original_update(path):
     """Show the "original" player only when there is something to compare against."""
     return gr.update(value=str(path) if path else None, visible=bool(path))
+
+
+def failure_text(meta, lang):
+    """A stored failure: translation key (+ params) for input problems, raw text for crashes."""
+    if meta.error and meta.error.startswith("error."):
+        return user_message(UserError(meta.error, **(meta.extra or {}).get("error_params", {})), lang)
+    return meta.error or t("state." + meta.status, lang)
 
 
 def clock(seconds):
@@ -218,7 +219,7 @@ def describe(meta, lang):
     """Plain-language notes about a result: warnings first, then what changed."""
     lines = []
     if meta.is_truncated:
-        lines.append("⚠️ " + t("note.truncated", lang))
+        lines.append("**" + t("note.truncated", lang) + "**")
     extra = meta.extra or {}
     if meta.operation in {"restyle", "cover"} and ("keep_chords" in extra or "keep_harmony" in extra):
         kept = extra.get("keep_chords", extra.get("keep_harmony"))

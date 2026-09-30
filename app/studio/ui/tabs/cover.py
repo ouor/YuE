@@ -4,6 +4,7 @@ from __future__ import annotations
 import gradio as gr
 
 from ...core import scores, styles
+from ..components.lyrics_assist import LyricsAssist
 from ..components.result_panel import RENDER_STEPS, ResultPanel, original_update
 from ..components.song_picker import SongPicker
 from ..components.style_builder import StyleBuilder
@@ -52,8 +53,9 @@ class CoverTab(Tab):
                 self.picker = SongPicker(ctx, "cover.source", accept=is_reference)
                 self.kind = ctx.choices(gr.Radio(list(KINDS), value="sung", label=T("cover.kind")), KINDS, "cover.kind")
                 self.lyrics = gr.Textbox(label=T("field.lyrics"), info=T("cover.lyrics_info"), lines=8, max_lines=24)
-                self.style = StyleBuilder(ctx, presets=["piano_pop", "cafe_jazz", "rock_anthem", "lofi_study"],
-                                          value=styles.PRESETS["piano_pop"], keep_language=True)
+                self.style = StyleBuilder(ctx, presets=styles.PRESET_GROUPS["cover"], keep_language=True)
+                self.assist = LyricsAssist(ctx, self.lyrics, self.style.prompt, melody=self.picker.dropdown,
+                                           melody_is_song=True)
                 with gr.Accordion(T("field.advanced"), open=False):
                     self.title = gr.Textbox(label=T("field.title"), placeholder=T("field.title_auto"))
                     self.seed = gr.Number(-1, precision=0, label=T("field.seed"), info=T("field.seed_info"))
@@ -126,6 +128,7 @@ class CoverTab(Tab):
             cover, [self.picker.dropdown, self.kind, self.lyrics, self.style.prompt, self.keep_harmony, self.seed,
                     self.title], panel.outputs, api_visibility="private", **GPU)
         self.stop_button(self.stop2, panel, run_event)
+        self.assist.wire()
         panel.follow(self.transcribe, self.run_button)
         panel.wire()
         self.on_select(self.tab)

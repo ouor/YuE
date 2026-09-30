@@ -6,7 +6,8 @@ from yue2.protocol import SongRequest
 from .. import scores, styles
 from ..models import Operation, ScoreOrigin
 from ..store import SongStore
-from .base import Workflow, derived_title, register, require, resolve_seed
+from ...i18n import t
+from .base import Workflow, register, require, resolve_seed
 
 
 def style_label(style):
@@ -14,6 +15,16 @@ def style_label(style):
     languages = {phrase.lower() for phrase in styles.LANGUAGES.values()}
     parts = [p.strip() for p in style.split(",") if p.strip()]
     return next((p for p in parts if p.lower() not in languages), parts[0] if parts else "")[:24]
+
+
+def genre_label(style, lang):
+    """The first genre named in the style, as its UI label (e.g. 'City pop'); falls back to the style phrase."""
+    text, best = style.lower(), None
+    for key, phrase in styles.GENRES.items():
+        index = text.find(phrase.lower())
+        if index >= 0 and (best is None or (index, -len(phrase)) < best[0]):
+            best = ((index, -len(phrase)), key)
+    return t(f"genre.{best[1]}", lang) if best else style_label(style)
 
 
 @register
@@ -36,7 +47,7 @@ class Restyle(Workflow):
             abc = self.store.read_score_variant(source_id, SongStore.MELODY_SCORE, scores.melody_only)
         mode = scores.mode_for(abc)
         meta = self.store.create(
-            Operation.RESTYLE, title or derived_title(parent, style_label(style)), parent_id=source_id,
+            Operation.RESTYLE, title or self.derived_title(parent, "version", ctx.lang, genre=genre_label(style, ctx.lang)), parent_id=source_id,
             style=style, lyrics=lyrics, mode=mode, seed=seed,
             score_origin=parent.score_origin if keep_chords else ScoreOrigin.CONVERTED.value,
             extra={"keep_chords": keep_chords})

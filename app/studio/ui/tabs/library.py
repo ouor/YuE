@@ -7,7 +7,7 @@ import gradio as gr
 
 from ...core.models import Operation
 from ...i18n import lang_of, t
-from ..components.result_panel import ResultPanel
+from ..components.result_panel import ResultPanel, failure_text
 from .base import Tab
 
 OPERATIONS = {"all": "all", **{op.value: op.value for op in Operation}}
@@ -73,7 +73,7 @@ class LibraryTab(Tab):
         if meta.style:
             facts.append(f"**{t('style.prompt', lang)}** {meta.style}")
         if meta.error:
-            facts.append(f"**{t('library.error', lang)}** `{meta.error}`")
+            facts.append(f"**{t('library.error', lang)}** {failure_text(meta, lang)}")
         chain = store.lineage(song_id)
         lineage = ""
         if len(chain) > 1:

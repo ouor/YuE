@@ -9,6 +9,7 @@ import numpy as np
 
 from .. import audio
 from ..jobs import Cancelled, UserError
+from ...i18n import languages, t
 from ..models import Status
 from ..store import SongStore
 
@@ -34,17 +35,25 @@ def require(value, key):
     return value.strip()
 
 
-def auto_title(lyrics="", style="", fallback="Untitled"):
+def auto_title(lyrics="", style="", lang="en"):
     for line in (lyrics or "").splitlines():
         line = line.strip()
         if line and not re.fullmatch(r"\[[^\]]*\]", line):
             return line[:40]
-    return (style or "").split(",")[0].strip()[:40] or fallback
+    return (style or "").split(",")[0].strip()[:40] or t("title.untitled", lang)
 
 
-def derived_title(parent, label):
-    """'<original title> · <label>' — without piling up labels from earlier versions."""
-    return f"{parent.title.split(' · ')[0]} · {label}"
+def _suffix_pattern():
+    # The last word of every label in every language, e.g. "edited", "연주곡", "version".
+    words = {t(key, lang, genre="").split()[-1] for lang in languages()
+             for key in ("label.edited", "label.instrumental", "label.cover", "label.version")}
+    alternatives = "|".join(re.escape(word) for word in sorted(words, key=len, reverse=True))
+    return re.compile(rf"\s*(?:\((?:[^()]*\s)?(?:{alternatives})(?:\s\d+)?\)|·.*)$")
+
+
+def base_title(title):
+    """Strip a suffix this app added earlier ('(edited)', '(City pop version)', '· edit')."""
+    return _suffix_pattern().sub("", title).strip() or title
 
 
 class Workflow:
@@ -66,6 +75,16 @@ class Workflow:
         raise NotImplementedError
 
     # -- shared steps -------------------------------------------------------
+    def derived_title(self, parent, label, lang, **params):
+        """'<original title> (<label>)', numbered if the library already has that title."""
+        base, text = base_title(parent.title), t(f"label.{label}", lang, **params)
+        existing = {meta.title for meta in self.store.list()}
+        title, number = t("title.derived", lang, title=base, label=text), 2
+        while title in existing:
+            title = t("title.derived", lang, title=base, label=f"{text} {number}")
+            number += 1
+        return title
+
     def source(self, song_id, *, need_score=True):
         if not song_id or not self.store.exists(song_id):
             raise UserError("error.song_missing")
@@ -84,7 +103,10 @@ class Workflow:
             self.store.update(meta.id, status=Status.PLANNED if has_plan else Status.CANCELLED)
             raise
         except UserError as exc:
-            self.store.update(meta.id, status=Status.FAILED, error=exc.key)
+            # Keep the key and its parameters so the library can show the message in any language.
+            current = self.store.get(meta.id)
+            self.store.update(meta.id, status=Status.FAILED, error=exc.key,
+                              extra={**current.extra, "error_params": exc.params})
             raise
         except Exception as exc:
             self.store.update(meta.id, status=Status.FAILED, error=f"{type(exc).__name__}: {exc}")

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from . import scores, styles
+from .assist import LyricsAssistant, LyricsRequest
 from .engine import Engine
 from .jobs import JobContext, JobRegistry, UserError, stream
 from .store import SongNotFound, SongStore
@@ -9,10 +10,11 @@ from .workflows import WORKFLOWS
 
 
 class Studio:
-    def __init__(self, settings, engine=None):
+    def __init__(self, settings, engine=None, assistant=None):
         self.settings = settings
         self.store = SongStore(settings.data_dir)
         self.engine = engine or Engine(settings)
+        self.assistant = assistant or LyricsAssistant()
         self.jobs = JobRegistry()
 
     # -- workflows ------------------------------------------------------------
@@ -33,15 +35,15 @@ class Studio:
                 return workflow.run(ctx, **params)
         return run
 
-    def run(self, name, ctx=None, **params):
+    def run(self, name, ctx=None, *, lang="en", **params):
         """Blocking call; returns the resulting SongMeta."""
-        return self._runner(name, params)(ctx or JobContext())
+        return self._runner(name, params)(ctx or JobContext(lang=lang))
 
-    def stream(self, name, *, session=None, **params):
+    def stream(self, name, *, session=None, lang="en", **params):
         """Yield job events; a Stop request for `session` cancels the running job."""
         run = self._runner(name, params)
         job = self.jobs.start(session) if session else None
-        for event in stream(run, job.cancel if job else None, done=job.done if job else None):
+        for event in stream(run, job.cancel if job else None, done=job.done if job else None, lang=lang):
             if job is not None and event.kind == "song":
                 job.song_id = event.data["song_id"]
             yield event
@@ -58,6 +60,33 @@ class Studio:
         if wait:
             job.done.wait(wait)
         return job.song_id or ""
+
+    # -- lyric assistant ------------------------------------------------------
+    def lyrics_request(self, style="", lyrics="", title="", theme="", melody_abc=None, source_id=None, lang="en"):
+        """Build an assistant request; a score (given or from a library song) makes it fit that melody."""
+        if not self.assistant.available:
+            raise UserError("error.assist_unavailable")
+        if not melody_abc and source_id and self.store.exists(source_id):
+            melody_abc = self.store.read_score(source_id)
+        melody = []
+        if melody_abc:
+            try:
+                melody = [s for s in scores.melody_outline(melody_abc) if s["phrases"] or s["label"] != "verse"]
+            except ValueError:
+                melody = []
+        if not (style or "").strip() and not (lyrics or "").strip() and not (theme or "").strip() and not melody:
+            raise UserError("error.assist_needs_input")
+        return LyricsRequest(style=style or "", title=title or "", theme=theme or "", lyrics=lyrics or "",
+                             melody=melody, ui_lang=lang)
+
+    def stream_lyrics(self, request):
+        """Yield the lyrics written so far; errors become UserError for the UI."""
+        try:
+            yield from self.assistant.stream(request)
+        except UserError:
+            raise
+        except Exception as exc:
+            raise UserError("error.assist_failed", detail=f"{type(exc).__name__}: {exc}") from exc
 
     # -- library --------------------------------------------------------------
     def song(self, song_id):

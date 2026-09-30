@@ -44,6 +44,9 @@
 /* The details accordion sits inside the style group; drop the default block frame there. */
 .mobile-collapse { border: none !important; border-top: 1px solid var(--border-color-primary) !important; border-radius: 0 !important; }
 
+.assist-row { align-items: flex-end; gap: 8px; }
+.assist-button { min-height: 42px; }
+
 /* ---- Bottom tab bar (phones only) ---- */
 .mobile-nav { display: none !important; }
 

@@ -6,7 +6,7 @@ from yue2.protocol import SongRequest
 from .. import scores
 from ..jobs import UserError
 from ..models import Operation, ScoreOrigin
-from .base import Workflow, auto_title, derived_title, register, require, resolve_seed
+from .base import Workflow, auto_title, register, require, resolve_seed
 
 
 @register
@@ -30,7 +30,7 @@ class EditScore(Workflow):
         changes = scores.compare(self.store.read_score(source_id), abc) if parent else None
         mode = scores.mode_for(abc)
         meta = self.store.create(
-            Operation.EDIT, title or (derived_title(parent, "edit") if parent else auto_title(lyrics, style)),
+            Operation.EDIT, title or (self.derived_title(parent, "edited", ctx.lang) if parent else auto_title(lyrics, style, ctx.lang)),
             parent_id=source_id, style=style, lyrics=lyrics, mode=mode, seed=seed,
             score_origin=ScoreOrigin.USER.value, extra={"changes": changes})
         ctx.emit("song", song_id=meta.id)

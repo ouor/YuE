@@ -64,7 +64,7 @@ def test_translations_cover_every_english_key():
     assert set(tables["ko"]) == set(tables["en"])
     assert i18n.resolve("ko-KR,ko;q=0.9,en;q=0.8") == "ko"
     assert i18n.resolve("fr-FR") == "en"
-    assert i18n.t("status.tokens", "ko", count="1,024") == "토큰 1,024개"
+    assert i18n.t("label.version", "ko", genre="시티팝") == "시티팝 버전"
     assert "C조" in i18n.t("editor.valid", "ko", bpm=90, key="C", meter="4/4", measures=8, seconds=20)
 
 
@@ -76,10 +76,76 @@ def test_every_style_option_has_a_label():
             assert f"{prefix}.{key}" in tables["en"], f"{prefix}.{key}"
 
 
+def test_preset_groups_are_consistent():
+    for group, names in styles.PRESET_GROUPS.items():
+        assert names and len(names) == len(set(names)), group
+        assert set(names) <= set(styles.PRESETS), group
+    assert all(styles.PRESETS[name]["vocal"] is None for name in styles.PRESET_GROUPS["instrumental"])
+    for preset in styles.PRESETS.values():
+        assert set(preset["genres"]) <= set(styles.GENRES) and set(preset["instruments"]) <= set(styles.INSTRUMENTS)
+        assert set(preset["moods"]) <= set(styles.MOODS)
+
+
 def test_compose_style():
     assert styles.compose_style("korean", ["kpop"], ["energetic"], ["synth"], "duet", 124, "") == \
         "Korean, energetic K-pop, male and female duet, synth, 124 BPM"
     assert styles.compose_style("english", ["lofi"], [], ["rhodes"], "female", 0, "", instrumental=True) == "lo-fi, Rhodes"
+
+
+def test_score_errors_are_explained_in_plain_words():
+    from studio.core.messages import explain_abc, user_message
+    raw = "group 2, Ins, bar 5: unsupported duration 14; split it into tied supported lengths"
+    assert explain_abc(raw, "en").startswith("Line 2, instrument part, bar 5: a note length of 14")
+    assert explain_abc(raw, "ko").startswith("2번째 줄 악기 파트 5마디: 길이 14인 음표")
+    assert explain_abc("something new from the parser", "en") == "Part of the score isn't in a supported format."
+    message = user_message(UserError("error.score_invalid", detail=raw), "ko")
+    assert message.startswith("악보를 먼저 고쳐 주세요: 2번째 줄") and "unsupported" not in message
+
+
+class FakeAssistant:
+    available = True
+
+    def __init__(self):
+        self.requests = []
+
+    def stream(self, request):
+        self.requests.append(request)
+        yield "[Verse]\n"
+        yield "[Verse]\nline one\n"
+
+
+def test_melody_outline_counts_sung_phrases(examples):
+    outline = scores.melody_outline((examples / "melody.abc").read_text(encoding="utf-8"))
+    assert outline == [{"label": "verse", "phrases": [7, 7, 7, 7]}, {"label": "chorus", "phrases": [7, 7, 7, 7]}]
+
+
+def test_lyric_prompt_and_cleanup():
+    from studio.core.assist import LyricsRequest, build_messages, clean, count_syllables, language_of
+    request = LyricsRequest(style="Korean, ballad", lyrics="[Verse]\n첫 줄\n", theme="첫눈")
+    system, user = build_messages(request)
+    assert language_of(request) == "Korean" and "MELODY FIT" not in system["content"]
+    # Lines already written outrank a style left on English; a Korean theme alone does not.
+    assert language_of(LyricsRequest(style="English, pop", lyrics="[Verse]\n첫 줄\n")) == "Korean"
+    assert language_of(LyricsRequest(style="English, pop", theme="첫눈")) == "English"
+    assert language_of(LyricsRequest(style="Korean, K-pop", lyrics="[Chorus]\nMidnight run\n")) == "Korean"
+    assert "keep these lines exactly" in user["content"] and "첫 줄" in user["content"]
+    fitted = build_messages(LyricsRequest(style="English, pop", melody=[{"label": "chorus", "phrases": [6, 5]}]))
+    assert "MELODY FIT" in fitted[0]["content"] and "[Chorus] 6, 5" in fitted[1]["content"]
+    assert clean("```\nTitle: X\n[Verse 1]\nIt’s here\n```") == "[Verse]\nIt's here\n"
+    assert count_syllables("창밖에 하얀 눈이", "Korean") == 7 and count_syllables("paper boats", "English") == 3
+
+
+def test_studio_lyrics_request_uses_the_songs_score(tmp_path, score):
+    studio = Studio(Settings().with_overrides(data_dir=tmp_path), engine=FakeEngine(score), assistant=FakeAssistant())
+    song = studio.run("create", style="pop", lyrics="[Verse]\nHello")
+    request = studio.lyrics_request(style="English, jazz", source_id=song.id)
+    assert [s["label"] for s in request.melody] == ["verse", "chorus"]
+    assert list(studio.stream_lyrics(request))[-1] == "[Verse]\nline one\n"
+    with pytest.raises(UserError, match="assist_needs_input"):
+        studio.lyrics_request()
+    studio.assistant.available = False
+    with pytest.raises(UserError, match="assist_unavailable"):
+        studio.lyrics_request(style="pop")
 
 
 def test_score_helpers(score):
@@ -123,8 +189,13 @@ def test_create_render_and_lineage(studio):
     assert restyled.parent_id == song.id and restyled.mode == "melody" and restyled.lyrics == song.lyrics
     assert (folder / SongStore.MELODY_SCORE).is_file()     # cached derived score on the parent
     assert [m.id for m in studio.store.lineage(restyled.id)] == [song.id, restyled.id]
+    assert restyled.title == f"{song.title} (Jazz version)"
     again = studio.run("instrumental", source_id=restyled.id)
-    assert again.title == f"{song.title} · instrumental"     # labels do not pile up across versions
+    assert again.title == f"{song.title} (instrumental)"     # labels do not pile up across versions
+    repeat = studio.run("instrumental", source_id=restyled.id)
+    assert repeat.title == f"{song.title} (instrumental 2)"
+    korean = studio.run("edit", abc=studio.store.read_score(song.id), source_id=song.id, lang="ko")
+    assert korean.title == f"{song.title} (편집본)"
 
 
 def test_review_first_then_record(studio):
