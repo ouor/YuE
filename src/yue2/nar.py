@@ -72,7 +72,12 @@ def attention(q, k, v, *, causal=False, backend="sdpa", query_chunk_size=None):
     key = k.transpose(0, 1).unsqueeze(0)
     value = v.transpose(0, 1).unsqueeze(0)
     grouped = query.shape[1] != key.shape[1]
-    if grouped and q.device.type == "mps":
+    # Only the flash kernel takes grouped K/V on CUDA; without it (e.g. Windows wheels) SDPA
+    # falls back to math and materializes the full score matrix, which exhausts 24 GB on a
+    # four-minute song. Expanded K/V lets the memory-efficient kernel run instead.
+    no_flash = (q.device.type == "cuda" and backend == "sdpa"
+                and not torch.backends.cuda.is_flash_attention_available())
+    if grouped and (q.device.type == "mps" or no_flash):
         groups = query.shape[1] // key.shape[1]
         key, value = key.repeat_interleave(groups, 1), value.repeat_interleave(groups, 1)
         grouped = False
