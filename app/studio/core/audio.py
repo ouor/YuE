@@ -62,3 +62,15 @@ def clip(source, target, start=0.0, length=None):
     command += ["-vn", "-ac", "2", "-ar", str(SAMPLE_RATE), str(target)]
     _run(command)
     return Path(target)
+
+
+def load_mono(path, sample_rate=16000):
+    """Mono float32 at `sample_rate` (speech recognition input)."""
+    from scipy.signal import resample_poly
+    data, rate = sf.read(str(path), dtype="float32", always_2d=True)
+    data = data.mean(axis=1)
+    if rate != sample_rate:
+        from math import gcd
+        g = gcd(rate, sample_rate)
+        data = resample_poly(data, sample_rate // g, rate // g).astype(np.float32)
+    return data

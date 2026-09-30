@@ -98,9 +98,18 @@ def register_api(studio):
     @gr.api(api_name="create_cover", **GPU)
     def create_cover(source_id: str, style: str, kind: str = "sung", lyrics: str = "",
                      keep_harmony: bool | None = None, seed: int = -1, title: str = "") -> dict:
-        """Cover a reference (from /transcribe_reference or /transcribe_abc). kind: sung | instrumental."""
+        """Cover a reference (from /transcribe_reference or /transcribe_abc).
+
+        kind: sung (your lyrics) | original (the reference's transcribed lyrics unless you pass lyrics) | instrumental.
+        """
         return run("cover", source_id=source_id, style=style, kind=kind, lyrics=lyrics, keep_harmony=keep_harmony,
                    seed=seed, title=title)
+
+    @gr.api(api_name="transcribe_lyrics", **GPU)
+    def transcribe_lyrics(source_id: str, language: str = "auto") -> dict:
+        """Transcribe the sung words of an audio reference onto its score lines (Qwen3-ASR); the song's
+        "lyrics" field holds the result. language: auto | english | korean | japanese | mandarin | cantonese."""
+        return run("transcribe_lyrics", source_id=source_id, language=language)
 
     @gr.api(api_name="complete_lyrics", concurrency_id="assist", concurrency_limit=4)
     def complete_lyrics(style: str = "", lyrics: str = "", title: str = "", theme: str = "", source_id: str = "",
@@ -149,13 +158,15 @@ def register_api(studio):
         upload = gr.File(type="filepath")
         start, length = gr.Number(0), gr.Number(60)
         keep_harmony, title = gr.Checkbox(False), gr.Textbox()
+        hear_lyrics, lyrics_language = gr.Checkbox(False), gr.Textbox("auto")
         song_id, result, file_out = gr.Textbox(), gr.JSON(), gr.File()
         trigger_transcribe, trigger_audio, trigger_export = gr.Button(), gr.Button(), gr.Button()
 
-    def transcribe_reference(path, start_seconds, length_seconds, keep, name):
-        """Upload a reference recording; returns the transcribed melody score as a song."""
+    def transcribe_reference(path, start_seconds, length_seconds, keep, name, lyrics, language):
+        """Upload a reference recording; returns the transcribed melody score as a song.
+        With lyrics=True the sung words are transcribed too (the song's "lyrics" field)."""
         return run("transcribe", audio_path=path, start=start_seconds or 0, length=length_seconds or None,
-                   keep_harmony=bool(keep), title=name or "")
+                   keep_harmony=bool(keep), title=name or "", lyrics=bool(lyrics), language=language or "auto")
 
     def song_audio(identifier):
         """Download a song's rendered FLAC (or a reference's clip)."""
@@ -170,7 +181,8 @@ def register_api(studio):
         song(identifier)
         return str(studio.store.export_zip(identifier))
 
-    trigger_transcribe.click(transcribe_reference, [upload, start, length, keep_harmony, title], result,
+    trigger_transcribe.click(transcribe_reference, [upload, start, length, keep_harmony, title, hear_lyrics,
+                                                    lyrics_language], result,
                              api_name="transcribe_reference", **GPU)
     trigger_audio.click(song_audio, [song_id], file_out, api_name="song_audio", queue=False)
     trigger_export.click(export_song, [song_id], file_out, api_name="export_song", queue=False)

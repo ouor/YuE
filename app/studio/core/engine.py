@@ -1,9 +1,11 @@
-"""GPU owner: loads YuE2 and SheetSage2 lazily and runs them one job at a time."""
+"""GPU owner: loads YuE2, SheetSage2 and Qwen3-ASR lazily and runs them one job at a time."""
 from __future__ import annotations
 
 from contextlib import contextmanager
 from dataclasses import dataclass
 import gc
+import importlib.util
+from pathlib import Path
 import threading
 import time
 
@@ -52,7 +54,8 @@ class Engine:
         return {"busy": self.busy, "yue2_loaded": self._pipe is not None,
                 "transcriber_loaded": self._transcriber is not None, "cuda": device,
                 "torch": torch.__version__, "model": self.settings.model, "vae": self.settings.vae,
-                "transcriber": self.settings.transcriber}
+                "transcriber": self.settings.transcriber, "lyrics_asr": self.settings.lyrics_asr,
+                "lyrics_available": self.lyrics_available}
 
     def pipeline(self):
         if self._pipe is None:
@@ -137,4 +140,45 @@ class Engine:
                                     dtype="bf16" if cuda else "fp32", progress=progress)
         finally:
             model.to("cpu")
+            self._free_cuda()
+
+    # -- Qwen3-ASR ------------------------------------------------------------
+    @property
+    def lyrics_available(self):
+        """qwen-asr is installed, and the models are local or may be downloaded."""
+        if importlib.util.find_spec("qwen_asr") is None:
+            return False
+        local = all(Path(p).is_dir() for p in (self.settings.lyrics_asr, self.settings.lyrics_aligner))
+        return local or not self.settings.offline
+
+    @contextmanager
+    def listener(self):
+        """Yield recognize(clips, language, timestamps) with Qwen3-ASR loaded; unloaded afterwards.
+
+        Loaded per use (about 6 GB, ten seconds): it runs rarely and YuE2 needs the room.
+        """
+        import torch
+        from qwen_asr import Qwen3ASRModel
+        if self._pipe is not None:
+            self._pipe.close()          # reloaded lazily, as for SheetSage2
+        self._park_transcriber()
+        device = str(self.settings.device)
+        cuda = torch.cuda.is_available() and (device == "auto" or device.startswith("cuda"))
+        options = dict(dtype=torch.bfloat16 if cuda else torch.float32, device_map="cuda:0" if cuda else "cpu",
+                       local_files_only=self.settings.offline)
+        model = Qwen3ASRModel.from_pretrained(self.settings.lyrics_asr, forced_aligner=self.settings.lyrics_aligner,
+                                              forced_aligner_kwargs=options, max_new_tokens=1024, **options)
+
+        def recognize(clips, language, timestamps):
+            results = []
+            for clip in clips:
+                result = model.transcribe((clip, 16000), language=language, return_time_stamps=timestamps)[0]
+                items = [(item.text, item.start_time, item.end_time) for item in (result.time_stamps or [])]
+                results.append((result.language, result.text, items))
+            return results
+
+        try:
+            yield recognize
+        finally:
+            model = None                 # drop the weights before emptying the CUDA cache
             self._free_cuda()

@@ -15,8 +15,16 @@ from studio.core.jobs import Cancelled, stream
 from studio.core.store import SongStore
 
 
+def beat_rows(abc, seconds=0.5, start=0.25):
+    """A SheetSage2-style beat grid for a 4/4 score: one row per quarter plus the closing downbeat."""
+    quarters = int(scores.parse(abc).voices["Vocal"].time)
+    return [(start + i * seconds, i % 4 + 1, 4, 4) for i in range(quarters + 1)]
+
+
 class FakeEngine:
-    """Stands in for YuE2/SheetSage2; returns a fixed score and one second of audio."""
+    """Stands in for YuE2/SheetSage2/Qwen3-ASR; returns a fixed score, one second of audio, fixed words."""
+
+    lyrics_available = True
 
     def __init__(self, abc, *, block=None):
         self.abc, self.block, self.calls = abc, block, []
@@ -46,7 +54,17 @@ class FakeEngine:
 
     def transcribe(self, audio_path, output_dir, *, melody_only, ctx):
         self.calls.append(("transcribe", melody_only))
+        (output_dir / "notation").mkdir(parents=True, exist_ok=True)
+        rows = beat_rows(self.abc)
+        (output_dir / "notation" / "song_beats.txt").write_text("\n".join("\t".join(map(str, r)) for r in rows))
         return {"abc": scores.melody_only(self.abc) if melody_only else self.abc}
+
+    @contextmanager
+    def listener(self):
+        def recognize(clips, language, timestamps):
+            self.calls.append(("listen", language, timestamps))
+            return [("English", "Hello there. We sing along.", []) for _ in clips]
+        yield recognize
 
 
 @pytest.fixture
@@ -133,6 +151,43 @@ def test_lyric_prompt_and_cleanup():
     assert "MELODY FIT" in fitted[0]["content"] and "[Chorus] 6, 5" in fitted[1]["content"]
     assert clean("```\nTitle: X\n[Verse 1]\nIt’s here\n```") == "[Verse]\nIt's here\n"
     assert count_syllables("창밖에 하얀 눈이", "Korean") == 7 and count_syllables("paper boats", "English") == 3
+
+
+def test_recognized_words_land_on_score_lines(examples):
+    from studio.core import lyric_sync
+    abc = (examples / "melody.abc").read_text(encoding="utf-8")
+    beats = beat_rows(abc, seconds=1.0)          # 32 seconds: two recognition windows
+    clock = lyric_sync.score_clock(abc, beats)
+    assert clock(0) == 0.25 and clock(1) == 1.25 and clock(4.5) == 4.75
+    sections = lyric_sync.sung_lines(abc, beats)
+    assert [(s.label, [line.notes for line in s.lines]) for s in sections] == [("verse", [7] * 4), ("chorus", [7] * 4)]
+    windows = lyric_sync.windows(sections)
+    assert len(windows) == 2 and windows[0].start == 0.0 and windows[0].end <= windows[1].start
+    words, n = ["one", "two", "three", "four", "five", "six", "sev"], 0
+    for window in windows:
+        text, tokens = "", []
+        for line in window.lines:
+            sentence = [f"{w}{n}" for w in words]
+            step = (line.end - line.start) / len(sentence)
+            for i, word in enumerate(sentence):
+                at = line.start + i * step - window.start
+                tokens.append((word, at, at + step * 0.8))
+            text, n = text + " ".join(sentence) + ". ", n + 1
+        lyric_sync.fill_window(window, text.strip(), tokens, "English")
+    lines = lyric_sync.format_lyrics(sections, "English").split("\n")
+    assert lines[:2] == ["[Verse]", "one0 two0 three0 four0 five0 six0 sev0"]
+    assert lines[5:8] == ["", "[Chorus]", "one4 two4 three4 four4 five4 six4 sev4"] and lines[-1] == ""
+    assert lines[-2] == "one7 two7 three7 four7 five7 six7 sev7"
+    # Without timings the words are spread by syllables against the notes.
+    sections = lyric_sync.sung_lines(abc, beats)
+    window = lyric_sync.windows(sections)[0]
+    lyric_sync.fill_window(window, "la la la la la la la. " * len(window.lines), [], "English")
+    assert lyric_sync.format_lyrics(sections).split("\n")[1:5] == ["la la la la la la la"] * 4
+    assert lyric_sync.language_from("始まりはそんな", "English") == "Japanese"
+    assert lyric_sync.language_from("I'm the one", "English") == "English"
+    assert lyric_sync.asr_language("auto") is None and lyric_sync.asr_language("mandarin") == "Chinese"
+    with pytest.raises(UserError, match="bad_language"):
+        lyric_sync.asr_language("klingon")
 
 
 def test_studio_lyrics_request_uses_the_songs_score(tmp_path, score):
@@ -250,6 +305,18 @@ def test_transcribe_and_covers(studio, tmp_path, score, examples):
     assert played.style.startswith("Instrumental") and played.lyrics == "[Verse]\n\n[Chorus]\n"
     from_abc = studio.run("transcribe", abc=(examples / "melody.abc").read_text(encoding="utf-8"))
     assert from_abc.score_origin == "user" and from_abc.mode == "melody"
+    # Original lyrics: none yet, then heard during transcription or afterwards.
+    with pytest.raises(UserError, match="cover_no_original_lyrics"):
+        studio.run("cover", source_id=reference.id, style="English, pop", kind="original")
+    with pytest.raises(UserError, match="lyrics_need_audio"):
+        studio.run("transcribe_lyrics", source_id=from_abc.id)
+    heard = studio.run("transcribe", audio_path=str(clip), length=6, lyrics=True, language="english")
+    assert heard.lyrics.startswith("[Verse]\nHello") and "[Chorus]" in heard.lyrics
+    assert heard.extra["lyrics_language"] == "English" and ("listen", "English", True) in studio.engine.calls
+    later = studio.run("transcribe_lyrics", source_id=reference.id)
+    assert "along" in later.lyrics and ("listen", None, False) in studio.engine.calls
+    original = studio.run("cover", source_id=heard.id, style="English, pop", kind="original")
+    assert original.lyrics == heard.lyrics and original.extra["kind"] == "original"
 
 
 def test_validation_errors(studio):

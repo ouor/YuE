@@ -31,6 +31,10 @@ class Settings:
     # A local folder is cached by folder name and can mix files from different snapshots.
     transcriber: str = field(default_factory=lambda: os.environ.get("YUE2_STUDIO_TRANSCRIBER", "m-a-p/SheetSage2"))
     transcriber_revision: str | None = field(default_factory=lambda: os.environ.get("YUE2_STUDIO_TRANSCRIBER_REVISION"))
+    # Qwen3-ASR hears the words of a reference (the YuE2 model card's recommended lyric step).
+    lyrics_asr: str = field(default_factory=lambda: _model("YUE2_STUDIO_LYRICS_ASR", "Qwen3-ASR-1.7B", "Qwen/Qwen3-ASR-1.7B"))
+    lyrics_aligner: str = field(default_factory=lambda: _model("YUE2_STUDIO_LYRICS_ALIGNER", "Qwen3-ForcedAligner-0.6B",
+                                                               "Qwen/Qwen3-ForcedAligner-0.6B"))
     device: str = field(default_factory=lambda: os.environ.get("YUE2_STUDIO_DEVICE", "auto"))
     offline: bool = field(default_factory=lambda: _flag("YUE2_STUDIO_OFFLINE"))
     skill_scripts: Path = REPO_ROOT / "skills" / "yue2-music" / "instrumental" / "scripts"

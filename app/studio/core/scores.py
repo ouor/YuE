@@ -155,53 +155,64 @@ def to_instrumental(text, keep_chords=True):
     return tools()["instrumentalize"].convert_score(text, overlap="vocal", keep_chords=keep_chords)
 
 
-def melody_outline(text, rest_gap=Fraction(1, 2), held=Fraction(1), longest=14, shortest=4):
-    """The sung shape of a score: one entry per section, with the note count of each phrase.
+def melody_phrases(text, rest_gap=Fraction(1, 2), held=Fraction(1), longest=14, shortest=4):
+    """The sung shape of a score: one entry per section, with its phrases as [start, end, notes].
 
-    A phrase ends at a rest of at least `rest_gap` quarter notes, or after a note held for
-    `held` quarters once the phrase has a few notes; phrases longer than `longest` notes are
-    split at bar lines. Each note is roughly one sung syllable, which is what lyric writing
-    needs: [{"label": "verse", "phrases": [8, 7]}]. Sections without vocal notes come back
-    with no phrases (instrumental passages).
+    Times are in quarter notes. A phrase ends at a rest of at least `rest_gap` quarter notes,
+    or after a note held for `held` quarters once the phrase has a few notes; phrases longer
+    than `longest` notes are split at bar lines. Sections without vocal notes come back with
+    no phrases (instrumental passages). Vocals before the first section comment get an
+    implicit "verse" entry marked `implicit`.
     """
     text = settle_key_changes(native_sections(text))
     score = parse(text)
     vocal = score.voices["Vocal"]
     bar_starts = {start for start, _, _ in vocal.bars}
     starts = sorted(tools()["instrumentalize"].section_starts(text, score).items())
-    sections = [{"label": label, "start": start, "phrases": []} for start, label in starts]
+    sections = [{"label": label, "start": start, "phrases": [], "implicit": False} for start, label in starts]
     if not sections or sections[0]["start"] > 0:
-        sections.insert(0, {"label": "verse", "start": Fraction(0), "phrases": []})
+        sections.insert(0, {"label": "verse", "start": Fraction(0), "phrases": [], "implicit": True})
     previous = None                      # (section index, end time, duration) of the last note
     for start, _pitch, duration in vocal.notes:
         index = max(i for i, section in enumerate(sections) if section["start"] <= start)
         phrases = sections[index]["phrases"]
         new_phrase = (previous is None or index != previous[0] or start - previous[1] >= rest_gap
-                      or (previous[2] >= held and phrases and phrases[-1] >= 4)
-                      or (start in bar_starts and phrases and phrases[-1] >= longest))
+                      or (previous[2] >= held and phrases and phrases[-1][2] >= 4)
+                      or (start in bar_starts and phrases and phrases[-1][2] >= longest))
         if new_phrase or not phrases:
-            phrases.append(0)
-        phrases[-1] += 1
+            phrases.append([start, start, 0])
+        phrases[-1][1] = start + duration
+        phrases[-1][2] += 1
         previous = (index, start + duration, duration)
     # A couple of notes before a section (a pickup) belong to the next section's first line.
     for current, following in zip(sections, sections[1:]):
-        if 0 < sum(current["phrases"]) < 4:
+        notes = sum(p[2] for p in current["phrases"])
+        if 0 < notes < 4:
             if following["phrases"]:
-                following["phrases"][0] += sum(current["phrases"])
+                following["phrases"][0][0] = current["phrases"][0][0]
+                following["phrases"][0][2] += notes
             current["phrases"] = []
     for section in sections:
         section["phrases"] = _merge_short(section["phrases"], shortest)
-    return [{"label": s["label"], "phrases": s["phrases"]} for s in sections]
+    return sections
+
+
+def melody_outline(text, **options):
+    """Note count of each sung phrase by section: [{"label": "verse", "phrases": [8, 7]}].
+
+    Each note is roughly one sung syllable, which is what lyric writing needs.
+    """
+    return [{"label": s["label"], "phrases": [p[2] for p in s["phrases"]]} for s in melody_phrases(text, **options)]
 
 
 def _merge_short(phrases, shortest):
     """Fold fragments (a held note splitting a line) into a neighbouring phrase."""
     merged = []
-    for count in phrases:
-        if merged and (count < shortest or merged[-1] < shortest):
-            merged[-1] += count
+    for start, end, count in phrases:
+        if merged and (count < shortest or merged[-1][2] < shortest):
+            merged[-1] = [merged[-1][0], end, merged[-1][2] + count]
         else:
-            merged.append(count)
+            merged.append([start, end, count])
     return merged
 
 
