@@ -131,7 +131,8 @@ def test_real_cuda_graph_bfloat16_parity(model, prefixes, backend, fused):
         graph = GraphAR(model, prefixes, 5, attention_backend=backend, fuse_projections=fused)
         torch.testing.assert_close(graph.prefill(), expected, atol=0, rtol=0)
         assert graph.graph is not None
-        assert graph.attention_backend == ("flash" if backend == "auto" else "cudnn")
+        flash_built = getattr(torch.backends.cuda, "is_flash_attention_available", lambda: True)()
+        assert graph.attention_backend == ("flash" if backend == "auto" and flash_built else "cudnn")
         for keys, values in zip(graph.keys, graph.values):
             for branch, prefix in enumerate(prefixes):
                 keys[branch, len(prefix)+1:].fill_(1000)
